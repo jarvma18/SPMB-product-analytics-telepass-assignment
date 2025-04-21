@@ -2,8 +2,10 @@ import pandas as pd
 from pandas import DataFrame
 from sklearn.model_selection import train_test_split
 
-transactions_df = pd.read_excel('./data/Telepass.xlsx', sheet_name='Transactions')
-quotes_df = pd.read_excel('./data/Telepass.xlsx', sheet_name='Insurance Quotes')
+def load_excel_sheets(filepath: str) -> tuple[DataFrame, DataFrame]:
+  transactions: DataFrame = pd.read_excel(filepath, sheet_name='Transactions')
+  insurance_quotes: DataFrame = pd.read_excel(filepath, sheet_name='Insurance Quotes')
+  return transactions, insurance_quotes
 
 transactions_df.head()
 transactions_df.info()
