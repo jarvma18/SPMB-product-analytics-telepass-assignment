@@ -76,3 +76,27 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Train
 model.fit(X_train, y_train)
+
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report, roc_curve
+import matplotlib.pyplot as plt
+
+# Predictions
+y_pred = model.predict(X_test)
+y_proba = model.predict_proba(X_test)[:, 1]
+
+# Metrics
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("ROC AUC:", roc_auc_score(y_test, y_proba))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+
+# ROC Curve
+fpr, tpr, _ = roc_curve(y_test, y_proba)
+plt.plot(fpr, tpr, label="Logistic Regression")
+plt.plot([0, 1], [0, 1], "k--")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate (Recall)")
+plt.title("ROC Curve")
+plt.legend()
+plt.grid()
+plt.show()
