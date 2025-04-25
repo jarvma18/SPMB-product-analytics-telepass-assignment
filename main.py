@@ -62,3 +62,17 @@ preprocessor = ColumnTransformer(transformers=[
   ("num", numeric_transformer, numeric),
   ("cat", categorical_transformer, categorical)
 ])
+
+# Full pipeline
+model = Pipeline(steps=[
+  ("preprocessor", preprocessor),
+  ("classifier", LogisticRegression(max_iter=1000, class_weight="balanced"))
+])
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+  X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+# Train
+model.fit(X_train, y_train)
