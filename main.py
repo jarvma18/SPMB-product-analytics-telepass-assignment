@@ -1,4 +1,10 @@
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
 
 quotes = pd.read_excel("./data/Telepass.xlsx", sheet_name="Insurance Quotes")
 transactions = pd.read_excel("./data/Telepass.xlsx", sheet_name="Transactions")
@@ -41,3 +47,18 @@ df = df[df[target].notna()]
 
 X = df[categorical + numeric]
 y = df[target].astype(int)
+
+# Preprocessing
+categorical_transformer = Pipeline(steps=[
+  ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+  ("onehot", OneHotEncoder(handle_unknown="ignore"))
+])
+
+numeric_transformer = Pipeline(steps=[
+  ("imputer", SimpleImputer(strategy="median"))
+])
+
+preprocessor = ColumnTransformer(transformers=[
+  ("num", numeric_transformer, numeric),
+  ("cat", categorical_transformer, categorical)
+])
