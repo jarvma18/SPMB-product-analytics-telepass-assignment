@@ -5,6 +5,13 @@ from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+from sklearn.metrics import roc_curve
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 quotes = pd.read_excel("./data/Telepass.xlsx", sheet_name="Insurance Quotes")
 transactions = pd.read_excel("./data/Telepass.xlsx", sheet_name="Transactions")
@@ -25,28 +32,32 @@ tx_pivot = tx_pivot.reset_index()
 # Merge pivoted transaction features into quotes
 df = quotes.merge(tx_pivot, on="client_id", how="left")
 
-# Target
+# Define target
 target = "issued"
 
-# Select features
+# Categorical and Numeric Features
 categorical = [
   "driving_type", "gender", "county", "car_brand", "car_model", "base_type", "operating_system"
 ]
 
+# Dynamic detection of pivoted service features
+pivot_features = [col for col in df.columns if col.startswith("number_transactions_") or col.startswith("expenditures_")]
+
 numeric = [
   "roadside_assistance", "driver_injury", "basic_coverage", "legal_protection",
-  "waive_right_compensation", "uninsured_vehicles", "protected_bonus", "windows", 
-  "natural_events", "theft_fire", "kasko", "license_revoked", "collision", "vandalism", 
-  "key_loss", "price_sale", "price_full", "discount_percent",
-  "number_transactions_OBU", "number_transactions_TelepassPay",
-  "expenditures_OBU", "expenditures_TelepassPay"
-]
+  "waive_right_compensation", "uninsured_vehicles", "protected_bonus", "windows",
+  "natural_events", "theft_fire", "kasko", "license_revoked", "collision", "vandalism",
+  "key_loss", "price_sale", "price_full", "discount_percent"
+] + pivot_features
 
-# Filter null target rows
+# Prepare features
 df = df[df[target].notna()]
-
 X = df[categorical + numeric]
 y = df[target].astype(int)
+
+# FIX: Make categorical columns string
+for col in categorical:
+  X.loc[:, col] = X[col].astype(str)
 
 # Preprocessing
 categorical_transformer = Pipeline(steps=[
@@ -55,7 +66,8 @@ categorical_transformer = Pipeline(steps=[
 ])
 
 numeric_transformer = Pipeline(steps=[
-  ("imputer", SimpleImputer(strategy="median"))
+  ("imputer", SimpleImputer(strategy="median")),
+  ("scaler", StandardScaler())
 ])
 
 preprocessor = ColumnTransformer(transformers=[
@@ -66,7 +78,7 @@ preprocessor = ColumnTransformer(transformers=[
 # Full pipeline
 model = Pipeline(steps=[
   ("preprocessor", preprocessor),
-  ("classifier", LogisticRegression(max_iter=1000, class_weight="balanced"))
+  ("classifier", LogisticRegression(max_iter=3000, class_weight="balanced"))
 ])
 
 # Train-test split
@@ -76,9 +88,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Train
 model.fit(X_train, y_train)
-
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report, roc_curve
-import matplotlib.pyplot as plt
 
 # Predictions
 y_pred = model.predict(X_test)
