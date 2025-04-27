@@ -11,6 +11,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 from sklearn.metrics import roc_curve
 from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
 import matplotlib.pyplot as plt
 from typing import List, Tuple
 
@@ -118,6 +119,44 @@ plt.plot([0, 1], [0, 1], "k--")
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate (Recall)")
 plt.title("ROC Curve")
+plt.legend()
+plt.grid()
+plt.show()
+
+# Decision tree start here
+
+# New model pipeline: same preprocessor, different classifier
+tree_model: Pipeline = Pipeline(steps=[
+    ("preprocessor", preprocessor),
+    ("classifier", DecisionTreeClassifier(
+        max_depth=15,
+        min_samples_split=10,
+        random_state=42
+    ))
+])
+
+# Train Decision Tree
+tree_model.fit(X_train, y_train)
+
+# Predict
+y_pred_tree = tree_model.predict(X_test)
+y_proba_tree = tree_model.predict_proba(X_test)[:, 1]
+
+# Metrics
+print("Decision Tree Accuracy:", accuracy_score(y_test, y_pred_tree))
+print("Decision Tree ROC AUC:", roc_auc_score(y_test, y_proba_tree))
+print("\nDecision Tree Classification Report:\n", classification_report(y_test, y_pred_tree))
+print("Decision Tree Confusion Matrix:\n", confusion_matrix(y_test, y_pred_tree))
+
+# ROC Curve
+fpr_tree, tpr_tree, _ = roc_curve(y_test, y_proba_tree)
+
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_tree, tpr_tree, label="Decision Tree")
+plt.plot([0, 1], [0, 1], "k--")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate (Recall)")
+plt.title("ROC Curve (Decision Tree)")
 plt.legend()
 plt.grid()
 plt.show()
