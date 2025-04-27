@@ -12,6 +12,7 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import roc_curve
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 from typing import List, Tuple
 
@@ -125,22 +126,41 @@ plt.show()
 
 # Decision tree start here
 
-# New model pipeline: same preprocessor, different classifier
-tree_model: Pipeline = Pipeline(steps=[
-    ("preprocessor", preprocessor),
-    ("classifier", DecisionTreeClassifier(
-        max_depth=15,
-        min_samples_split=10,
-        random_state=42
-    ))
+# Pipelines
+categorical_transformer_tree: Pipeline = Pipeline(steps=[
+  ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+  ("onehot", OneHotEncoder(handle_unknown="ignore"))
 ])
 
-# Train Decision Tree
+numeric_transformer_tree: Pipeline = Pipeline(steps=[
+  ("imputer", SimpleImputer(strategy="median"))
+  # No scaler here!
+])
+
+preprocessor_tree: ColumnTransformer = ColumnTransformer(transformers=[
+  ("num", numeric_transformer_tree, numeric),
+  ("cat", categorical_transformer_tree, categorical)
+])
+
+# Decision Tree model
+tree_model: Pipeline = Pipeline(steps=[
+  ("preprocessor", preprocessor_tree),
+  ("classifier", DecisionTreeClassifier(
+    max_depth=12,          # A tuned starting point, avoids overfitting
+    min_samples_split=10,  # Prevents splits on very tiny groups
+    min_samples_leaf=5,    # Ensures minimum samples in leaves
+    random_state=42
+  ))
+])
+
+# Train-test split (already done earlier, reuse X_train, X_test, y_train, y_test)
+
+# Train
 tree_model.fit(X_train, y_train)
 
-# Predict
-y_pred_tree = tree_model.predict(X_test)
-y_proba_tree = tree_model.predict_proba(X_test)[:, 1]
+# Predictions
+y_pred_tree: pd.Series = tree_model.predict(X_test)
+y_proba_tree: pd.Series = tree_model.predict_proba(X_test)[:, 1]
 
 # Metrics
 print("Decision Tree Accuracy:", accuracy_score(y_test, y_pred_tree))
@@ -152,11 +172,71 @@ print("Decision Tree Confusion Matrix:\n", confusion_matrix(y_test, y_pred_tree)
 fpr_tree, tpr_tree, _ = roc_curve(y_test, y_proba_tree)
 
 plt.figure(figsize=(8, 6))
-plt.plot(fpr_tree, tpr_tree, label="Decision Tree")
+plt.plot(fpr_tree, tpr_tree, label="Decision Tree (New)")
 plt.plot([0, 1], [0, 1], "k--")
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate (Recall)")
-plt.title("ROC Curve (Decision Tree)")
+plt.title("ROC Curve - Decision Tree (Properly Tuned)")
+plt.legend()
+plt.grid()
+plt.show()
+
+# Random forest starts here
+
+# Pipelines (same as Decision Tree for preprocessing)
+categorical_transformer_rf: Pipeline = Pipeline(steps=[
+  ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+  ("onehot", OneHotEncoder(handle_unknown="ignore"))
+])
+
+numeric_transformer_rf: Pipeline = Pipeline(steps=[
+  ("imputer", SimpleImputer(strategy="median"))
+  # No scaler here!
+])
+
+preprocessor_rf: ColumnTransformer = ColumnTransformer(transformers=[
+  ("num", numeric_transformer_rf, numeric),
+  ("cat", categorical_transformer_rf, categorical)
+])
+
+# Random Forest model
+rf_model: Pipeline = Pipeline(steps=[
+  ("preprocessor", preprocessor_rf),
+  ("classifier", RandomForestClassifier(
+    n_estimators=100,      # 100 trees (good starting point)
+    max_depth=15,          # Reasonable limit to avoid huge trees
+    min_samples_split=10,  # To avoid overfitting on noise
+    min_samples_leaf=5,    # Ensure reasonable leaf size
+    class_weight="balanced",  # Balance classes!!
+    random_state=42,
+    n_jobs=-1              # Use all CPU cores
+  ))
+])
+
+# Train-test split (reuse X_train, X_test, y_train, y_test)
+
+# Train
+rf_model.fit(X_train, y_train)
+
+# Predictions
+y_pred_rf: pd.Series = rf_model.predict(X_test)
+y_proba_rf: pd.Series = rf_model.predict_proba(X_test)[:, 1]
+
+# Metrics
+print("Random Forest Accuracy:", accuracy_score(y_test, y_pred_rf))
+print("Random Forest ROC AUC:", roc_auc_score(y_test, y_proba_rf))
+print("\nRandom Forest Classification Report:\n", classification_report(y_test, y_pred_rf))
+print("Random Forest Confusion Matrix:\n", confusion_matrix(y_test, y_pred_rf))
+
+# ROC Curve
+fpr_rf, tpr_rf, _ = roc_curve(y_test, y_proba_rf)
+
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_rf, tpr_rf, label="Random Forest (New)")
+plt.plot([0, 1], [0, 1], "k--")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate (Recall)")
+plt.title("ROC Curve - Random Forest (Properly Tuned)")
 plt.legend()
 plt.grid()
 plt.show()
