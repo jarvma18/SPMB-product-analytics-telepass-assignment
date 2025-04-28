@@ -2,8 +2,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from typing import List, Tuple
-
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
@@ -15,78 +13,61 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
   accuracy_score,
   roc_auc_score,
-  confusion_matrix,
   classification_report,
+  confusion_matrix,
   roc_curve
 )
 
-# Load data
-quotes: pd.DataFrame = pd.read_excel("./data/Telepass.xlsx", sheet_name="Insurance Quotes")
-transactions: pd.DataFrame = pd.read_excel("./data/Telepass.xlsx", sheet_name="Transactions")
+# --- Data loading ---
+quotes = pd.read_excel("./data/Telepass.xlsx", sheet_name="Insurance Quotes")
+transactions = pd.read_excel("./data/Telepass.xlsx", sheet_name="Transactions")
 
-# Pivot transaction data
-tx_pivot: pd.DataFrame = transactions.pivot_table(
+# Pivotointi
+tx_pivot = transactions.pivot_table(
   index="client_id",
   columns="service_type",
   values=["number_transactions", "expenditures"],
   aggfunc="sum",
   fill_value=0
 )
-
-# Flatten pivoted columns
 tx_pivot.columns = [f"{stat}_{stype}" for stat, stype in tx_pivot.columns]
 tx_pivot = tx_pivot.reset_index()
 
-# Merge datasets
-df: pd.DataFrame = quotes.merge(tx_pivot, on="client_id", how="left")
+# Merge
+df = quotes.merge(tx_pivot, on="client_id", how="left")
 
-# Target
-target: str = "issued"
-
-# Features
-categorical: List[str] = [
+# Feature set
+target = "issued"
+categorical = [
   "driving_type", "gender", "county", "car_brand", "car_model", "base_type", "operating_system"
 ]
-
-pivot_features: List[str] = [
-  col for col in df.columns if col.startswith("number_transactions_") or col.startswith("expenditures_")
-]
-
-numeric: List[str] = [
+pivot_features = [col for col in df.columns if col.startswith("number_transactions_") or col.startswith("expenditures_")]
+numeric = [
   "roadside_assistance", "driver_injury", "basic_coverage", "legal_protection",
   "waive_right_compensation", "uninsured_vehicles", "protected_bonus", "windows",
   "natural_events", "theft_fire", "kasko", "license_revoked", "collision", "vandalism",
   "key_loss", "price_sale", "price_full", "discount_percent"
 ] + pivot_features
 
-# Filter and prepare features
+# Puhdistus
 df = df[df[target].notna()]
-X: pd.DataFrame = df[categorical + numeric].copy()
-y: pd.Series = df[target].astype(int)
-
-# Ensure categorical columns are strings
+X = df[categorical + numeric].copy()
+y = df[target].astype(int)
 X[categorical] = X[categorical].astype(str)
 
 # Preprocessing pipelines
-categorical_transformer: Pipeline = Pipeline([
+categorical_transformer = Pipeline([
   ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
   ("onehot", OneHotEncoder(handle_unknown="ignore"))
 ])
-
-numeric_transformer: Pipeline = Pipeline([
+numeric_transformer = Pipeline([
   ("imputer", SimpleImputer(strategy="median")),
   ("scaler", StandardScaler())
 ])
 
-preprocessor: ColumnTransformer = ColumnTransformer([
+preprocessor = ColumnTransformer([
   ("num", numeric_transformer, numeric),
   ("cat", categorical_transformer, categorical)
-])
-
-# Model pipeline
-model: Pipeline = Pipeline([
-  ("preprocessor", preprocessor),
-  ("classifier", LogisticRegression(max_iter=3000, class_weight="balanced"))
 ])
 
 # Train-test split
@@ -94,99 +75,11 @@ X_train, X_test, y_train, y_test = train_test_split(
   X, y, test_size=0.3, random_state=42, stratify=y
 )
 
-# Train logistic regression
-model.fit(X_train, y_train)
-
-# Predictions
-y_pred: np.ndarray = model.predict(X_test)
-y_proba: np.ndarray = model.predict_proba(X_test)[:, 1]
-
-# Metrics
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print("ROC AUC:", roc_auc_score(y_test, y_proba))
-print("\nClassification Report:\n", classification_report(y_test, y_pred))
-print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
-
-# ROC Curve
-fpr: np.ndarray
-tpr: np.ndarray
-thresholds: np.ndarray
-fpr, tpr, thresholds = roc_curve(y_test, y_proba)
-
-plt.figure(figsize=(8, 6))
-plt.plot(fpr, tpr, label="Logistic Regression")
-plt.plot([0, 1], [0, 1], "k--")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate (Recall)")
-plt.title("ROC Curve")
-plt.legend()
-plt.grid()
-plt.show()
-
-# --- Decision Tree
-
-# Tree Preprocessing (no scaling)
-categorical_transformer_tree: Pipeline = Pipeline([
-  ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
-  ("onehot", OneHotEncoder(handle_unknown="ignore"))
-])
-
-numeric_transformer_tree: Pipeline = Pipeline([
-  ("imputer", SimpleImputer(strategy="median"))
-])
-
-preprocessor_tree: ColumnTransformer = ColumnTransformer([
-  ("num", numeric_transformer_tree, numeric),
-  ("cat", categorical_transformer_tree, categorical)
-])
-
-# Decision Tree Model
-tree_model: Pipeline = Pipeline([
-  ("preprocessor", preprocessor_tree),
-  ("classifier", DecisionTreeClassifier(
-    max_depth=12,
-    min_samples_split=10,
-    min_samples_leaf=5,
-    random_state=42
-  ))
-])
-
-# Train
-tree_model.fit(X_train, y_train)
-
-# Predictions
-y_pred_tree: np.ndarray = tree_model.predict(X_test)
-y_proba_tree: np.ndarray = tree_model.predict_proba(X_test)[:, 1]
-
-# Metrics
-print("Decision Tree Accuracy:", accuracy_score(y_test, y_pred_tree))
-print("Decision Tree ROC AUC:", roc_auc_score(y_test, y_proba_tree))
-print("\nDecision Tree Classification Report:\n", classification_report(y_test, y_pred_tree))
-print("Decision Tree Confusion Matrix:\n", confusion_matrix(y_test, y_pred_tree))
-
-# ROC Curve
-fpr_tree, tpr_tree, thresholds_tree = roc_curve(y_test, y_proba_tree)
-
-plt.figure(figsize=(8, 6))
-plt.plot(fpr_tree, tpr_tree, label="Decision Tree")
-plt.plot([0, 1], [0, 1], "k--")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate (Recall)")
-plt.title("ROC Curve - Decision Tree")
-plt.legend()
-plt.grid()
-plt.show()
-
-# --- Random Forest
-
-# RF Preprocessing (same as Decision Tree)
-preprocessor_rf = preprocessor_tree
-
-# Random Forest Model
-rf_model: Pipeline = Pipeline([
-  ("preprocessor", preprocessor_rf),
+# --- 1. Train Random Forest for Feature Importance ---
+rf_model_full = Pipeline([
+  ("preprocessor", preprocessor),
   ("classifier", RandomForestClassifier(
-    n_estimators=100,
+    n_estimators=300,
     max_depth=15,
     min_samples_split=10,
     min_samples_leaf=5,
@@ -196,28 +89,84 @@ rf_model: Pipeline = Pipeline([
   ))
 ])
 
-# Train
-rf_model.fit(X_train, y_train)
+rf_model_full.fit(X_train, y_train)
 
-# Predictions
-y_pred_rf: np.ndarray = rf_model.predict(X_test)
-y_proba_rf: np.ndarray = rf_model.predict_proba(X_test)[:, 1]
+# Haetaan feature importances
+importances = rf_model_full.named_steps["classifier"].feature_importances_
+feature_names = rf_model_full.named_steps["preprocessor"].get_feature_names_out()
+importance_df = pd.DataFrame({"feature": feature_names, "importance": importances}).sort_values(by="importance", ascending=False)
 
-# Metrics
-print("Random Forest Accuracy:", accuracy_score(y_test, y_pred_rf))
-print("Random Forest ROC AUC:", roc_auc_score(y_test, y_proba_rf))
-print("\nRandom Forest Classification Report:\n", classification_report(y_test, y_pred_rf))
-print("Random Forest Confusion Matrix:\n", confusion_matrix(y_test, y_pred_rf))
+# Valitaan Top 40 featurea
+top_features = importance_df.head(40)["feature"].tolist()
 
-# ROC Curve
-fpr_rf, tpr_rf, thresholds_rf = roc_curve(y_test, y_proba_rf)
+# --- 2. Build Reduced Dataset ---
+X_train_transformed = rf_model_full.named_steps["preprocessor"].transform(X_train)
+X_test_transformed = rf_model_full.named_steps["preprocessor"].transform(X_test)
 
-plt.figure(figsize=(8, 6))
+X_train_reduced = pd.DataFrame(X_train_transformed.toarray(), columns=feature_names)[top_features]
+X_test_reduced = pd.DataFrame(X_test_transformed.toarray(), columns=feature_names)[top_features]
+
+# --- 3. Train Models with Reduced Features ---
+# Logistic Regression
+reduced_lr = LogisticRegression(max_iter=3000, class_weight="balanced")
+reduced_lr.fit(X_train_reduced, y_train)
+y_pred_lr = reduced_lr.predict(X_test_reduced)
+y_proba_lr = reduced_lr.predict_proba(X_test_reduced)[:, 1]
+
+# Decision Tree
+reduced_dt = DecisionTreeClassifier(
+  max_depth=12,
+  min_samples_split=10,
+  min_samples_leaf=5,
+  random_state=42
+)
+reduced_dt.fit(X_train_reduced, y_train)
+y_pred_dt = reduced_dt.predict(X_test_reduced)
+y_proba_dt = reduced_dt.predict_proba(X_test_reduced)[:, 1]
+
+# Random Forest
+reduced_rf = RandomForestClassifier(
+  n_estimators=300,
+  max_depth=15,
+  min_samples_split=10,
+  min_samples_leaf=5,
+  class_weight="balanced",
+  random_state=42,
+  n_jobs=-1
+)
+reduced_rf.fit(X_train_reduced, y_train)
+y_pred_rf = reduced_rf.predict(X_test_reduced)
+y_proba_rf = reduced_rf.predict_proba(X_test_reduced)[:, 1]
+
+# --- 4. Arviointi ja ROC-käyrät ---
+def evaluate_model(name, y_test, y_pred, y_proba):
+    print(f"\n{name} Accuracy:", accuracy_score(y_test, y_pred))
+    print(f"{name} ROC AUC:", roc_auc_score(y_test, y_proba))
+    print(f"\n{name} Classification Report:\n", classification_report(y_test, y_pred))
+    print(f"{name} Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+
+plt.figure(figsize=(10, 8))
+
+# Logistic Regression
+evaluate_model("Reduced Logistic Regression", y_test, y_pred_lr, y_proba_lr)
+fpr_lr, tpr_lr, _ = roc_curve(y_test, y_proba_lr)
+plt.plot(fpr_lr, tpr_lr, label="Logistic Regression")
+
+# Decision Tree
+evaluate_model("Reduced Decision Tree", y_test, y_pred_dt, y_proba_dt)
+fpr_dt, tpr_dt, _ = roc_curve(y_test, y_proba_dt)
+plt.plot(fpr_dt, tpr_dt, label="Decision Tree")
+
+# Random Forest
+evaluate_model("Reduced Random Forest", y_test, y_pred_rf, y_proba_rf)
+fpr_rf, tpr_rf, _ = roc_curve(y_test, y_proba_rf)
 plt.plot(fpr_rf, tpr_rf, label="Random Forest")
+
+# ROC-käyrän asetukset
 plt.plot([0, 1], [0, 1], "k--")
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate (Recall)")
-plt.title("ROC Curve - Random Forest")
+plt.title("ROC Curve - Reduced Features")
 plt.legend()
 plt.grid()
 plt.show()
