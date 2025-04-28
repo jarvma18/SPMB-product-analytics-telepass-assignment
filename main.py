@@ -18,57 +18,73 @@ from sklearn.metrics import (
   roc_curve
 )
 
-# --- Data loading ---
-quotes = pd.read_excel("./data/Telepass.xlsx", sheet_name="Insurance Quotes")
-transactions = pd.read_excel("./data/Telepass.xlsx", sheet_name="Transactions")
+from typing import Tuple
 
-# Pivotointi
-tx_pivot = transactions.pivot_table(
-  index="client_id",
-  columns="service_type",
-  values=["number_transactions", "expenditures"],
-  aggfunc="sum",
-  fill_value=0
-)
-tx_pivot.columns = [f"{stat}_{stype}" for stat, stype in tx_pivot.columns]
-tx_pivot = tx_pivot.reset_index()
+def print_model_evaluation_stats(name: str, y_test: np.ndarray, y_pred: np.ndarray, y_proba: np.ndarray) -> None:
+  print(f"\n{name} Accuracy:", accuracy_score(y_test, y_pred))
+  print(f"{name} ROC AUC:", roc_auc_score(y_test, y_proba))
+  print(f"\n{name} Classification Report:\n", classification_report(y_test, y_pred))
+  print(f"{name} Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
 
-# Merge
-df = quotes.merge(tx_pivot, on="client_id", how="left")
+def load_telepass_data(filepath: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+  quotes = pd.read_excel(filepath, sheet_name="Insurance Quotes")
+  transactions = pd.read_excel(filepath, sheet_name="Transactions")
+  return quotes, transactions
 
-# Feature set
-target = "issued"
-categorical = [
-  "driving_type", "gender", "county", "car_brand", "car_model", "base_type", "operating_system"
-]
-pivot_features = [col for col in df.columns if col.startswith("number_transactions_") or col.startswith("expenditures_")]
-numeric = [
-  "roadside_assistance", "driver_injury", "basic_coverage", "legal_protection",
-  "waive_right_compensation", "uninsured_vehicles", "protected_bonus", "windows",
-  "natural_events", "theft_fire", "kasko", "license_revoked", "collision", "vandalism",
-  "key_loss", "price_sale", "price_full", "discount_percent"
-] + pivot_features
+def preprocess_transactions(transactions: pd.DataFrame) -> pd.DataFrame:
+  tx_pivot = transactions.pivot_table(
+    index="client_id",
+    columns="service_type",
+    values=["number_transactions", "expenditures"],
+    aggfunc="sum",
+    fill_value=0
+  )
+  tx_pivot.columns = [f"{stat}_{stype}" for stat, stype in tx_pivot.columns]
+  return tx_pivot.reset_index()
 
-# Puhdistus
+def merge_quotes_and_transactions(quotes: pd.DataFrame, transactions_pivot: pd.DataFrame) -> pd.DataFrame:
+  return quotes.merge(transactions_pivot, on="client_id", how="left")
+
+def get_feature_lists(df: pd.DataFrame) -> Tuple[list[str], list[str], str]:
+  target = "issued"
+  categorical = [
+    "driving_type", "gender", "county", "car_brand", "car_model",
+    "base_type", "operating_system"
+  ]
+  pivot_features = [col for col in df.columns if col.startswith("number_transactions_") or col.startswith("expenditures_")]
+  numeric = [
+    "roadside_assistance", "driver_injury", "basic_coverage", "legal_protection",
+    "waive_right_compensation", "uninsured_vehicles", "protected_bonus", "windows",
+    "natural_events", "theft_fire", "kasko", "license_revoked", "collision", "vandalism",
+    "key_loss", "price_sale", "price_full", "discount_percent"
+  ] + pivot_features
+  return categorical, numeric, target
+
+def build_preprocessing_pipeline(categorical_features: list[str], numeric_features: list[str]) -> ColumnTransformer:
+  categorical_transformer = Pipeline([
+    ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
+    ("onehot", OneHotEncoder(handle_unknown="ignore"))
+  ])
+  numeric_transformer = Pipeline([
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler())
+  ])
+  return ColumnTransformer([
+    ("num", numeric_transformer, numeric_features),
+    ("cat", categorical_transformer, categorical_features)
+  ])
+
+quotes, transactions = load_telepass_data("./data/Telepass.xlsx")
+tx_pivot = preprocess_transactions(transactions)
+df = merge_quotes_and_transactions(quotes, tx_pivot)
+categorical, numeric, target = get_feature_lists(df)
+
 df = df[df[target].notna()]
 X = df[categorical + numeric].copy()
 y = df[target].astype(int)
 X[categorical] = X[categorical].astype(str)
 
-# Preprocessing pipelines
-categorical_transformer = Pipeline([
-  ("imputer", SimpleImputer(strategy="constant", fill_value="missing")),
-  ("onehot", OneHotEncoder(handle_unknown="ignore"))
-])
-numeric_transformer = Pipeline([
-  ("imputer", SimpleImputer(strategy="median")),
-  ("scaler", StandardScaler())
-])
-
-preprocessor = ColumnTransformer([
-  ("num", numeric_transformer, numeric),
-  ("cat", categorical_transformer, categorical)
-])
+preprocessor = build_preprocessing_pipeline(categorical, numeric)
 
 # Train-test split
 X_train, X_test, y_train, y_test = train_test_split(
@@ -138,31 +154,20 @@ reduced_rf.fit(X_train_reduced, y_train)
 y_pred_rf = reduced_rf.predict(X_test_reduced)
 y_proba_rf = reduced_rf.predict_proba(X_test_reduced)[:, 1]
 
-# --- 4. Arviointi ja ROC-käyrät ---
-def evaluate_model(name, y_test, y_pred, y_proba):
-    print(f"\n{name} Accuracy:", accuracy_score(y_test, y_pred))
-    print(f"{name} ROC AUC:", roc_auc_score(y_test, y_proba))
-    print(f"\n{name} Classification Report:\n", classification_report(y_test, y_pred))
-    print(f"{name} Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
-
 plt.figure(figsize=(10, 8))
 
-# Logistic Regression
-evaluate_model("Reduced Logistic Regression", y_test, y_pred_lr, y_proba_lr)
+print_model_evaluation_stats("Reduced Logistic Regression", y_test, y_pred_lr, y_proba_lr)
 fpr_lr, tpr_lr, _ = roc_curve(y_test, y_proba_lr)
 plt.plot(fpr_lr, tpr_lr, label="Logistic Regression")
 
-# Decision Tree
-evaluate_model("Reduced Decision Tree", y_test, y_pred_dt, y_proba_dt)
+print_model_evaluation_stats("Reduced Decision Tree", y_test, y_pred_dt, y_proba_dt)
 fpr_dt, tpr_dt, _ = roc_curve(y_test, y_proba_dt)
 plt.plot(fpr_dt, tpr_dt, label="Decision Tree")
 
-# Random Forest
-evaluate_model("Reduced Random Forest", y_test, y_pred_rf, y_proba_rf)
+print_model_evaluation_stats("Reduced Random Forest", y_test, y_pred_rf, y_proba_rf)
 fpr_rf, tpr_rf, _ = roc_curve(y_test, y_proba_rf)
 plt.plot(fpr_rf, tpr_rf, label="Random Forest")
 
-# ROC-käyrän asetukset
 plt.plot([0, 1], [0, 1], "k--")
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate (Recall)")
