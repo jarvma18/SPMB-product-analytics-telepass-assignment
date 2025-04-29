@@ -74,6 +74,31 @@ def build_preprocessing_pipeline(categorical_features: list[str], numeric_featur
     ("cat", categorical_transformer, categorical_features)
   ])
 
+def train_random_forest_for_feature_selection(
+  X_train: pd.DataFrame,
+  y_train: pd.Series,
+  preprocessor: ColumnTransformer,
+  n_features: int = 40
+) -> Tuple[list[str], Pipeline]:
+  rf_model = Pipeline([
+    ("preprocessor", preprocessor),
+    ("classifier", RandomForestClassifier(
+      n_estimators=300,
+      max_depth=15,
+      min_samples_split=10,
+      min_samples_leaf=5,
+      class_weight="balanced",
+      random_state=42,
+      n_jobs=-1
+    ))
+  ])
+  rf_model.fit(X_train, y_train)
+  importances = rf_model.named_steps["classifier"].feature_importances_
+  feature_names = rf_model.named_steps["preprocessor"].get_feature_names_out()
+  importance_df = pd.DataFrame({"feature": feature_names, "importance": importances}).sort_values(by="importance", ascending=False)
+  top_features = importance_df.head(n_features)["feature"].tolist()
+  return top_features, rf_model
+
 quotes, transactions = load_telepass_data("./data/Telepass.xlsx")
 tx_pivot = preprocess_transactions(transactions)
 df = merge_quotes_and_transactions(quotes, tx_pivot)
@@ -91,29 +116,7 @@ X_train, X_test, y_train, y_test = train_test_split(
   X, y, test_size=0.3, random_state=42, stratify=y
 )
 
-# --- 1. Train Random Forest for Feature Importance ---
-rf_model_full = Pipeline([
-  ("preprocessor", preprocessor),
-  ("classifier", RandomForestClassifier(
-    n_estimators=300,
-    max_depth=15,
-    min_samples_split=10,
-    min_samples_leaf=5,
-    class_weight="balanced",
-    random_state=42,
-    n_jobs=-1
-  ))
-])
-
-rf_model_full.fit(X_train, y_train)
-
-# Haetaan feature importances
-importances = rf_model_full.named_steps["classifier"].feature_importances_
-feature_names = rf_model_full.named_steps["preprocessor"].get_feature_names_out()
-importance_df = pd.DataFrame({"feature": feature_names, "importance": importances}).sort_values(by="importance", ascending=False)
-
-# Valitaan Top 40 featurea
-top_features = importance_df.head(40)["feature"].tolist()
+train_random_forest_for_feature_selection(X_train, y_train, preprocessor)
 
 # --- 2. Build Reduced Dataset ---
 X_train_transformed = rf_model_full.named_steps["preprocessor"].transform(X_train)
