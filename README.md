@@ -1,55 +1,40 @@
-# SPMB-product-analytics-telepass-assignment
+# 🚗 Telepass Insurance Purchase Prediction
 
-## Plain trained model results
+Predictive modeling project to help Telepass forecast customer insurance purchases using user, vehicle, and transaction data.
 
-Accuracy: 0.5927939550313306
-ROC AUC: 0.6355379629484416
+## 📊 Problem
 
-Classification Report:
-               precision    recall  f1-score   support
+Telepass wants to identify likely insurance buyers and decide whether to expand its current brokerage model or begin selling insurance directly.
 
-           0       0.80      0.59      0.67      7818
-           1       0.36      0.61      0.46      3034
+## 🔍 Approach
 
-    accuracy                           0.59     10852
-   macro avg       0.58      0.60      0.57     10852
-weighted avg       0.67      0.59      0.61     10852
+- Merged `Insurance Quotes` with `Transactions` on `client_id`.
+- Engineered features from demographics, vehicle data, insurance pricing, and behavioral usage.
+- Trained and compared:
+  - Logistic Regression
+  - Decision Tree
+  - Random Forest
 
-Confusion Matrix:
- [[4576 3242]
- [1177 1857]]
-Decision Tree Accuracy: 0.735256173977147
-Decision Tree ROC AUC: 0.7162836492970517
+## ⚙️ Tools
 
-Decision Tree Classification Report:
-               precision    recall  f1-score   support
+- Python (pandas, scikit-learn)
+- Excel (`Telepass.xlsx`)
 
-           0       0.75      0.94      0.84      7818
-           1       0.57      0.21      0.31      3034
+## 📈 Results
 
-    accuracy                           0.74     10852
-   macro avg       0.66      0.57      0.57     10852
-weighted avg       0.70      0.74      0.69     10852
+| Model            | F1 (Buyers) | Recall | Precision | ROC AUC |
+|------------------|-------------|--------|-----------|---------|
+| Logistic Reg.    | 0.48        | 83%    | 34%       | 64.4%   |
+| Decision Tree    | 0.53        | 85%    | 39%       | 71.6%   |
+| Random Forest ✅ | **0.55**    | 74%    | 44%       | **76.1%** |
 
-Decision Tree Confusion Matrix:
- [[7347  471]
- [2402  632]]
-Random Forest Accuracy: 0.6424622189458165
-Random Forest ROC AUC: 0.7236591293387993
+## 📌 Conclusion
 
-Random Forest Classification Report:
-               precision    recall  f1-score   support
+Random Forest performed best overall. Key recommendation: Telepass should continue optimizing the brokerage model instead of selling insurance directly, due to regulatory complexity and lack of telematics data.
 
-           0       0.84      0.63      0.72      7818
-           1       0.42      0.68      0.52      3034
+## ▶️ Run Locally
 
-    accuracy                           0.64     10852
-   macro avg       0.63      0.66      0.62     10852
-weighted avg       0.72      0.64      0.66     10852
-
-Random Forest Confusion Matrix:
- [[4894 2924]
- [ 956 2078]]
-
-## Iterated / feature reducted model results
-
+```bash
+git clone https://github.com/jarvma18/SPMB-product-analytics-telepass-assignment.git
+cd SPMB-product-analytics-telepass-assignment
+python main.py
