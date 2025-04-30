@@ -97,7 +97,7 @@ def train_random_forest_for_feature_selection(
   feature_names = rf_model.named_steps["preprocessor"].get_feature_names_out()
   importance_df = pd.DataFrame({"feature": feature_names, "importance": importances}).sort_values(by="importance", ascending=False)
   top_features = importance_df.head(n_features)["feature"].tolist()
-  return top_features, rf_model
+  return top_features, rf_model, feature_names
 
 quotes, transactions = load_telepass_data("./data/Telepass.xlsx")
 tx_pivot = preprocess_transactions(transactions)
@@ -116,7 +116,7 @@ X_train, X_test, y_train, y_test = train_test_split(
   X, y, test_size=0.3, random_state=42, stratify=y
 )
 
-train_random_forest_for_feature_selection(X_train, y_train, preprocessor)
+top_features, rf_model_full, feature_names = train_random_forest_for_feature_selection(X_train, y_train, preprocessor)
 
 # --- 2. Build Reduced Dataset ---
 X_train_transformed = rf_model_full.named_steps["preprocessor"].transform(X_train)
